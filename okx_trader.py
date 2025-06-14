@@ -38,7 +38,7 @@ class OKXTrader:
             # 初始化各个API模块
             self.account_api = Account.AccountAPI(
                 api_key=Config.OKX_API_KEY,
-                secret_key=Config.OKX_SECRET_KEY,
+                api_secret_key=Config.OKX_SECRET_KEY,
                 passphrase=Config.OKX_PASSPHRASE,
                 use_server_time=False,
                 flag=self.flag
@@ -46,7 +46,7 @@ class OKXTrader:
             
             self.trade_api = Trade.TradeAPI(
                 api_key=Config.OKX_API_KEY,
-                secret_key=Config.OKX_SECRET_KEY,
+                api_secret_key=Config.OKX_SECRET_KEY,
                 passphrase=Config.OKX_PASSPHRASE,
                 use_server_time=False,
                 flag=self.flag
@@ -54,7 +54,7 @@ class OKXTrader:
             
             self.market_api = MarketData.MarketAPI(
                 api_key=Config.OKX_API_KEY,
-                secret_key=Config.OKX_SECRET_KEY,
+                api_secret_key=Config.OKX_SECRET_KEY,
                 passphrase=Config.OKX_PASSPHRASE,
                 use_server_time=False,
                 flag=self.flag
