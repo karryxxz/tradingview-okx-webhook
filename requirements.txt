@@ -15,17 +15,17 @@ python-dotenv==1.0.0
 # logging==0.4.9.6
 
 # 网络请求
-requests==2.31.0
-urllib3==2.0.7
+requests>=2.25.0
+urllib3==1.26.12
 
 # JSON处理 (Python内置，无需安装)
 # jsonschema==4.19.0
 
 # 时间处理
-pytz==2023.3
+pytz>=2023.3
 
 # 密码学（用于签名验证）
-cryptography==41.0.4
+cryptography>=41.0.0
 
 # 可选：通知功能
 # 微信机器人
@@ -35,5 +35,5 @@ cryptography==41.0.4
 # smtplib（Python内置）
 
 # 开发工具（可选）
-pytest==7.4.2
-pytest-flask==1.2.0
+pytest>=7.4.0
+pytest-flask>=1.2.0
