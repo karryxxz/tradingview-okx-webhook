@@ -1,0 +1,179 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © AlgoAlpha - 修改为策略版本（支持Webhook）
+
+//@version=5
+strategy("Zero Lag Trend Strategy (MTF) [AlgoAlpha] - Webhook版", shorttitle="零延迟趋势策略-Webhook", overlay=true, 
+         default_qty_type=strategy.percent_of_equity, default_qty_value=100, 
+         commission_type=strategy.commission.percent, commission_value=0.1,
+         calc_on_every_tick=true)
+
+// ===== 策略参数设置 =====
+// 基础计算参数
+length = input.int(70, "EMA计算周期", tooltip = "零延迟EMA的计算窗口期，数值越大趋势越平滑", group = "基础参数")
+mult = input.float(1.2, "通道宽度倍数", tooltip = "控制通道宽度，数值越大信号越少但质量更高", group = "基础参数")
+
+// 多时间框架设置
+t1 = input.timeframe("5", "时间周期1", group = "多时间框架")
+t2 = input.timeframe("15", "时间周期2", group = "多时间框架")
+t3 = input.timeframe("60", "时间周期3", group = "多时间框架")
+t4 = input.timeframe("240", "时间周期4", group = "多时间框架")
+t5 = input.timeframe("1D", "时间周期5", group = "多时间框架")
+
+// 风险管理参数
+use_stop_loss = input.bool(true, "启用止损", group = "风险管理")
+stop_loss_pct = input.float(2.0, "止损百分比", minval=0.1, maxval=10.0, step=0.1, group = "风险管理")
+use_take_profit = input.bool(true, "启用止盈", group = "风险管理") 
+take_profit_pct = input.float(4.0, "止盈百分比", minval=0.1, maxval=20.0, step=0.1, group = "风险管理")
+use_mtf_filter = input.bool(true, "启用多时间框架过滤", tooltip = "只有当高级时间框架趋势一致时才开仓", group = "风险管理")
+
+// ===== 新增：Webhook设置 =====
+enable_webhook = input.bool(true, "启用Webhook交易", tooltip = "开启后将发送交易信号到外部服务器", group = "Webhook设置")
+position_size_usdt = input.float(1000.0, "仓位大小(USDT)", minval=10.0, maxval=100000.0, step=10.0, tooltip = "每次交易的价值（美元）", group = "Webhook设置")
+leverage = input.int(10, "杠杆倍数", minval=1, maxval=100, step=1, tooltip = "OKX合约杠杆倍数", group = "Webhook设置")
+
+// 外观设置
+green = input.color(#00ffbb, "看涨颜色", group = "外观设置")
+red = input.color(#ff1100, "看跌颜色", group = "外观设置")
+
+src = close
+
+// ===== 核心计算逻辑 =====
+// 计算零延迟EMA
+lag = math.floor((length - 1) / 2)
+zlema = ta.ema(src + (src - src[lag]), length)
+
+// 计算波动性通道
+volatility = ta.highest(ta.atr(length), length*3) * mult
+
+// 趋势判断变量
+var trend = 0
+
+// 趋势转换逻辑
+if ta.crossover(close, zlema+volatility)
+    trend := 1    // 转为看涨趋势
+
+if ta.crossunder(close, zlema-volatility)
+    trend := -1   // 转为看跌趋势
+
+// ===== 多时间框架分析 =====
+s1 = request.security(syminfo.tickerid, t1, trend)
+s2 = request.security(syminfo.tickerid, t2, trend)
+s3 = request.security(syminfo.tickerid, t3, trend)
+s4 = request.security(syminfo.tickerid, t4, trend)
+s5 = request.security(syminfo.tickerid, t5, trend)
+
+// 多时间框架一致性检查
+mtf_bullish = s1 > 0 and s2 > 0 and s3 > 0  // 至少前3个时间框架看涨
+mtf_bearish = s1 < 0 and s2 < 0 and s3 < 0  // 至少前3个时间框架看跌
+
+// ===== 交易信号逻辑 =====
+// 看涨趋势信号：当趋势从看跌转为看涨时立即做多
+long_condition = ta.crossover(trend, 0)  // 趋势转为看涨
+if use_mtf_filter
+    long_condition := long_condition and mtf_bullish
+
+// 看跌趋势信号：当趋势从看涨转为看跌时立即做空
+short_condition = ta.crossunder(trend, 0)  // 趋势转为看跌
+if use_mtf_filter
+    short_condition := short_condition and mtf_bearish
+
+// ===== Webhook消息格式定义 =====
+// 构建标准化的JSON消息格式
+long_message = '{"action":"buy","symbol":"' + str.replace(syminfo.tickerid, ":", "") + '","price":' + str.tostring(close) + ',"size":' + str.tostring(position_size_usdt / close) + ',"leverage":' + str.tostring(leverage) + ',"stop_loss":' + str.tostring(use_stop_loss ? close * (1 - stop_loss_pct / 100) : 0) + ',"take_profit":' + str.tostring(use_take_profit ? close * (1 + take_profit_pct / 100) : 0) + ',"timestamp":"' + str.tostring(time) + '"}'
+
+short_message = '{"action":"sell","symbol":"' + str.replace(syminfo.tickerid, ":", "") + '","price":' + str.tostring(close) + ',"size":' + str.tostring(position_size_usdt / close) + ',"leverage":' + str.tostring(leverage) + ',"stop_loss":' + str.tostring(use_stop_loss ? close * (1 + stop_loss_pct / 100) : 0) + ',"take_profit":' + str.tostring(use_take_profit ? close * (1 - take_profit_pct / 100) : 0) + ',"timestamp":"' + str.tostring(time) + '"}'
+
+// ===== 策略执行（反手交易逻辑）=====
+// 看涨趋势：平空仓+开多仓（反手交易）
+if long_condition
+    if strategy.position_size < 0  // 如果当前持有空仓
+        strategy.close("空头", comment="趋势反转平空仓")
+    strategy.entry("多头", strategy.long, comment="看涨趋势开多仓")
+    
+    // 发送Webhook信号
+    if enable_webhook
+        alert(long_message, alert.freq_once_per_bar)
+    else
+        alert("检测到看涨趋势信号，立即开多仓", alert.freq_once_per_bar)
+
+// 看跌趋势：平多仓+开空仓（反手交易）  
+if short_condition
+    if strategy.position_size > 0  // 如果当前持有多仓
+        strategy.close("多头", comment="趋势反转平多仓")
+    strategy.entry("空头", strategy.short, comment="看跌趋势开空仓")
+    
+    // 发送Webhook信号
+    if enable_webhook
+        alert(short_message, alert.freq_once_per_bar)
+    else
+        alert("检测到看跌趋势信号，立即开空仓", alert.freq_once_per_bar)
+
+// ===== 风险管理 =====
+// 止损止盈设置
+if strategy.position_size > 0 and use_stop_loss
+    strategy.exit("多头止损止盈", "多头", 
+                 stop=close * (1 - stop_loss_pct / 100), 
+                 limit=use_take_profit ? close * (1 + take_profit_pct / 100) : na)
+
+if strategy.position_size < 0 and use_stop_loss
+    strategy.exit("空头止损止盈", "空头", 
+                 stop=close * (1 + stop_loss_pct / 100), 
+                 limit=use_take_profit ? close * (1 - take_profit_pct / 100) : na)
+
+// ===== 图表显示 =====
+// 零延迟EMA和通道
+zlemaColor = trend == 1 ? color.new(green, 70) : color.new(red, 70)
+m = plot(zlema, title="零延迟EMA", linewidth=2, color=zlemaColor)
+upper = plot(trend == -1 ? zlema+volatility : na, style = plot.style_linebr, color = color.new(red, 90), title = "上轨")
+lower = plot(trend == 1 ? zlema-volatility : na, style = plot.style_linebr, color = color.new(green, 90), title = "下轨")
+
+// 填充区域
+fill(m, upper, (open + close) / 2, zlema+volatility, color.new(red, 90), color.new(red, 70))
+fill(m, lower, (open + close) / 2, zlema-volatility, color.new(green, 90), color.new(green, 70))
+
+// 趋势转换信号（现在这些就是开仓信号）
+plotshape(ta.crossunder(trend, 0) ? zlema+volatility : na, "看跌趋势开仓", shape.labeldown, location.absolute, red, text = "空▼", textcolor = chart.fg_color, size = size.small)
+plotshape(ta.crossover(trend, 0) ? zlema-volatility : na, "看涨趋势开仓", shape.labelup, location.absolute, green, text = "多▲", textcolor = chart.fg_color, size = size.small)
+
+// 原来的入场信号现在改为趋势加强信号（可选显示）
+plotchar(ta.crossover(close, zlema) and trend == 1 and trend[1] == 1 ? zlema-volatility*1.5 : na, "看涨加强", "↑", location.absolute, color.new(green, 50), size = size.tiny)
+plotchar(ta.crossunder(close, zlema) and trend == -1 and trend[1] == -1 ? zlema+volatility*1.5 : na, "看跌加强", "↓", location.absolute, color.new(red, 50), size = size.tiny)
+
+// ===== 多时间框架信息表格 =====
+s1a = s1 == 1 ? "看涨" : "看跌"
+s2a = s2 == 1 ? "看涨" : "看跌" 
+s3a = s3 == 1 ? "看涨" : "看跌"
+s4a = s4 == 1 ? "看涨" : "看跌"
+s5a = s5 == 1 ? "看涨" : "看跌"
+
+if barstate.islast
+    var data_table = table.new(position=position.top_right, columns=2, rows=7, bgcolor=chart.bg_color, border_width=1, border_color=chart.fg_color, frame_color=chart.fg_color, frame_width=1)
+    table.cell(data_table, text_halign=text.align_center, column=0, row=0, text="时间周期", text_color=chart.fg_color)
+    table.cell(data_table, text_halign=text.align_center, column=1, row=0, text="趋势信号", text_color=chart.fg_color)
+
+    table.cell(data_table, text_halign=text.align_center, column=0, row=1, text=t1, text_color=chart.fg_color)
+    table.cell(data_table, text_halign=text.align_center, column=1, row=1, text=s1a, text_color=chart.fg_color, bgcolor=s1a == "看涨" ? color.new(green, 70) : color.new(red, 70))
+
+    table.cell(data_table, text_halign=text.align_center, column=0, row=2, text=t2, text_color=chart.fg_color)
+    table.cell(data_table, text_halign=text.align_center, column=1, row=2, text=s2a, text_color=chart.fg_color, bgcolor=s2a == "看涨" ? color.new(green, 70) : color.new(red, 70))
+
+    table.cell(data_table, text_halign=text.align_center, column=0, row=3, text=t3, text_color=chart.fg_color)
+    table.cell(data_table, text_halign=text.align_center, column=1, row=3, text=s3a, text_color=chart.fg_color, bgcolor=s3a == "看涨" ? color.new(green, 70) : color.new(red, 70))
+
+    table.cell(data_table, text_halign=text.align_center, column=0, row=4, text=t4, text_color=chart.fg_color)
+    table.cell(data_table, text_halign=text.align_center, column=1, row=4, text=s4a, text_color=chart.fg_color, bgcolor=s4a == "看涨" ? color.new(green, 70) : color.new(red, 70))
+
+    table.cell(data_table, text_halign=text.align_center, column=0, row=5, text=t5, text_color=chart.fg_color)
+    table.cell(data_table, text_halign=text.align_center, column=1, row=5, text=s5a, text_color=chart.fg_color, bgcolor=s5a == "看涨" ? color.new(green, 70) : color.new(red, 70))
+    
+    // 新增：Webhook状态显示
+    webhook_status = enable_webhook ? "已启用" : "已禁用"
+    table.cell(data_table, text_halign=text.align_center, column=0, row=6, text="Webhook", text_color=chart.fg_color)
+    table.cell(data_table, text_halign=text.align_center, column=1, row=6, text=webhook_status, text_color=chart.fg_color, bgcolor=enable_webhook ? color.new(green, 70) : color.new(color.gray, 70))
+
+// ===== 趋势确认提醒 =====
+// 移除alertcondition，改用条件触发的alert
+if ta.crossover(trend, 0) and not enable_webhook
+    alert("看涨趋势确认", alert.freq_once_per_bar)
+if ta.crossunder(trend, 0) and not enable_webhook
+    alert("看跌趋势确认", alert.freq_once_per_bar)
