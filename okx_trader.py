@@ -15,7 +15,6 @@ OKX交易模块 - 处理合约交易操作
 - 使用前请仔细检查所有参数设置
 """
 
-import okx.PublicData as PublicData
 import okx.Account as Account
 import okx.Trade as Trade
 import okx.MarketData as MarketData
@@ -61,14 +60,6 @@ class OKXTrader:
                 flag=self.flag
             )
             
-            self.public_api = PublicData.PublicAPI(
-                api_key=Config.OKX_API_KEY,
-                secret_key=Config.OKX_SECRET_KEY,
-                passphrase=Config.OKX_PASSPHRASE,
-                use_server_time=False,
-                flag=self.flag
-            )
-            
             # 交易状态跟踪
             self.daily_trade_count = 0
             self.last_trade_date = None
@@ -82,7 +73,7 @@ class OKXTrader:
     def check_connection(self):
         """检查API连接状态"""
         try:
-            result = self.public_api.get_system_time()
+            result = self.market_api.get_system_time()
             if result.get('code') == '0':
                 logger.info("OKX API连接正常")
                 return True
