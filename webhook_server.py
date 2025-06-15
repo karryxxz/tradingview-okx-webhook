@@ -329,10 +329,10 @@ def test_api():
     try:
         results = {}
         
-        # 测试1: 系统时间 (公开端点，无需认证)
+        # 测试1: 市场数据 (公开端点，无需认证)
         try:
-            logger.info("测试公开API: 系统时间")
-            public_result = okx_trader.market_api.get_system_time()
+            logger.info("测试公开API: 市场数据")
+            public_result = okx_trader.market_api.get_tickers(instType="SPOT")
             results['system_time'] = {
                 'success': True,
                 'data': public_result,
