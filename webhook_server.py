@@ -391,6 +391,104 @@ def test_api():
         logger.error(f"API测试失败: {e}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/test-raw-api', methods=['GET'])
+def test_raw_api():
+    """测试原始HTTP请求到OKX API"""
+    import requests
+    import json
+    
+    try:
+        results = {}
+        
+        # 测试1: 直接HTTP请求到OKX公开API
+        try:
+            logger.info("测试直接HTTP请求到OKX公开API")
+            response = requests.get(
+                "https://www.okx.com/api/v5/market/tickers?instType=SPOT",
+                timeout=10
+            )
+            logger.info(f"HTTP状态码: {response.status_code}")
+            logger.info(f"响应头: {dict(response.headers)}")
+            logger.info(f"响应内容前200字符: {response.text[:200]}")
+            
+            if response.status_code == 200:
+                try:
+                    json_data = response.json()
+                    results['direct_http'] = {
+                        'success': True,
+                        'status_code': response.status_code,
+                        'data_sample': str(json_data)[:500],
+                        'note': '直接HTTP请求成功'
+                    }
+                except json.JSONDecodeError as e:
+                    results['direct_http'] = {
+                        'success': False,
+                        'status_code': response.status_code,
+                        'response_text': response.text[:500],
+                        'error': f"JSON解析失败: {e}",
+                        'note': '直接HTTP响应不是JSON格式'
+                    }
+            else:
+                results['direct_http'] = {
+                    'success': False,
+                    'status_code': response.status_code,
+                    'response_text': response.text[:500],
+                    'note': 'HTTP请求失败'
+                }
+        except Exception as e:
+            logger.error(f"直接HTTP请求异常: {e}")
+            results['direct_http'] = {
+                'success': False,
+                'error': str(e),
+                'note': '直接HTTP请求异常'
+            }
+        
+        # 测试2: 使用OKX SDK但捕获更多信息
+        try:
+            logger.info("测试OKX SDK详细调试")
+            
+            # 临时启用详细日志
+            import logging
+            okx_logger = logging.getLogger('okx')
+            okx_logger.setLevel(logging.DEBUG)
+            
+            # 创建新的handler来捕获OKX SDK日志
+            import io
+            log_capture = io.StringIO()
+            handler = logging.StreamHandler(log_capture)
+            okx_logger.addHandler(handler)
+            
+            # 调用SDK
+            sdk_result = okx_trader.market_api.get_tickers(instType="SPOT")
+            
+            # 获取捕获的日志
+            captured_logs = log_capture.getvalue()
+            
+            results['sdk_debug'] = {
+                'success': True,
+                'result': str(sdk_result)[:500],
+                'captured_logs': captured_logs[:1000],
+                'note': 'OKX SDK调用详细调试'
+            }
+            
+        except Exception as e:
+            results['sdk_debug'] = {
+                'success': False,
+                'error': str(e),
+                'error_type': str(type(e)),
+                'note': 'OKX SDK调用失败'
+            }
+        
+        return jsonify({
+            'test_results': results,
+            'timestamp': datetime.now().isoformat(),
+            'note': '原始API调试测试'
+        })
+        
+    except Exception as e:
+        logger.error(f"原始API测试失败: {e}")
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
     # 云平台端口适配：Render会提供PORT环境变量
     port = int(os.environ.get("PORT", Config.SERVER_PORT or 5000))
