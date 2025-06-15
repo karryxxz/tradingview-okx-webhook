@@ -489,6 +489,83 @@ def test_raw_api():
         logger.error(f"原始API测试失败: {e}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/test-network', methods=['GET'])
+def test_network():
+    """测试基础网络连通性"""
+    import requests
+    
+    try:
+        results = {}
+        
+        # 测试1: 测试能否访问外网
+        try:
+            response = requests.get("https://httpbin.org/ip", timeout=10)
+            results['httpbin'] = {
+                'success': response.status_code == 200,
+                'status_code': response.status_code,
+                'content': response.text[:200],
+                'note': '基础外网连通性测试'
+            }
+        except Exception as e:
+            results['httpbin'] = {
+                'success': False,
+                'error': str(e),
+                'note': '外网访问失败'
+            }
+        
+        # 测试2: 测试能否访问OKX域名
+        try:
+            response = requests.get("https://www.okx.com", timeout=10)
+            results['okx_domain'] = {
+                'success': response.status_code == 200,
+                'status_code': response.status_code,
+                'content_length': len(response.text),
+                'content_preview': response.text[:100],
+                'note': 'OKX域名访问测试'
+            }
+        except Exception as e:
+            results['okx_domain'] = {
+                'success': False,
+                'error': str(e),
+                'note': 'OKX域名访问失败'
+            }
+        
+        # 测试3: 尝试最简单的OKX API调用
+        try:
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            }
+            response = requests.get(
+                "https://www.okx.com/api/v5/public/time", 
+                headers=headers,
+                timeout=10
+            )
+            results['okx_api_simple'] = {
+                'success': response.status_code == 200,
+                'status_code': response.status_code,
+                'headers': dict(response.headers),
+                'content': response.text[:200],
+                'note': '最简单的OKX公开API'
+            }
+        except Exception as e:
+            results['okx_api_simple'] = {
+                'success': False,
+                'error': str(e),
+                'note': 'OKX API访问失败'
+            }
+        
+        return jsonify({
+            'test_results': results,
+            'timestamp': datetime.now().isoformat(),
+            'note': '网络连通性测试'
+        })
+        
+    except Exception as e:
+        logger.error(f"网络测试失败: {e}")
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
     # 云平台端口适配：Render会提供PORT环境变量
     port = int(os.environ.get("PORT", Config.SERVER_PORT or 5000))
