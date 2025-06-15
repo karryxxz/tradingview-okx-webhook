@@ -634,6 +634,61 @@ def test_imports():
             'error_type': str(type(e))
         }), 500
 
+@app.route('/test-external-simple', methods=['GET'])
+def test_external_simple():
+    """最简单的外部网络测试"""
+    import requests
+    import time
+    
+    results = {}
+    
+    # 测试1: 最简单的HTTP请求
+    try:
+        start_time = time.time()
+        response = requests.get("https://httpbin.org/get", timeout=5)
+        end_time = time.time()
+        
+        results['httpbin_simple'] = {
+            'success': response.status_code == 200,
+            'status_code': response.status_code,
+            'response_time': f"{end_time - start_time:.2f}s",
+            'content_type': response.headers.get('Content-Type', 'unknown'),
+            'content_length': len(response.text),
+            'sample_content': response.text[:100]
+        }
+    except Exception as e:
+        results['httpbin_simple'] = {
+            'success': False,
+            'error': str(e),
+            'error_type': str(type(e).__name__)
+        }
+    
+    # 测试2: 尝试访问一个肯定存在的网站
+    try:
+        start_time = time.time()
+        response = requests.get("https://www.google.com", timeout=5)
+        end_time = time.time()
+        
+        results['google_simple'] = {
+            'success': response.status_code == 200,
+            'status_code': response.status_code,
+            'response_time': f"{end_time - start_time:.2f}s",
+            'content_length': len(response.text),
+            'note': 'Google访问测试'
+        }
+    except Exception as e:
+        results['google_simple'] = {
+            'success': False,
+            'error': str(e),
+            'error_type': str(type(e).__name__)
+        }
+    
+    return jsonify({
+        'test_results': results,
+        'timestamp': datetime.now().isoformat(),
+        'note': '简单外部网络连通性测试'
+    })
+
 if __name__ == '__main__':
     # 云平台端口适配：Render会提供PORT环境变量
     port = int(os.environ.get("PORT", Config.SERVER_PORT or 5000))
