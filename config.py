@@ -45,8 +45,8 @@ class Config:
     # 是否启用实际交易（False=只记录日志，不实际下单）
     ENABLE_TRADING = os.getenv('ENABLE_TRADING', 'False').lower() == 'true'
     
-    # 最大单次交易仓位（BTC数量）
-    MAX_POSITION_SIZE = float(os.getenv('MAX_POSITION_SIZE', '0.1'))
+    # 最大单次交易仓位（USDT金额）
+    MAX_POSITION_SIZE = float(os.getenv('MAX_POSITION_SIZE', '1000'))
     
     # 最大杠杆倍数
     MAX_LEVERAGE = int(os.getenv('MAX_LEVERAGE', '10'))
@@ -129,7 +129,7 @@ class Config:
         print(f"调试模式: {cls.DEBUG}")
         print(f"OKX测试环境: {cls.OKX_SANDBOX}")
         print(f"实际交易: {cls.ENABLE_TRADING}")
-        print(f"最大仓位: {cls.MAX_POSITION_SIZE} BTC")
+        print(f"最大仓位: {cls.MAX_POSITION_SIZE} USDT")
         print(f"最大杠杆: {cls.MAX_LEVERAGE}x")
         print(f"API密钥: {'已配置' if cls.OKX_API_KEY != 'your_api_key' else '未配置'}")
         print("================")

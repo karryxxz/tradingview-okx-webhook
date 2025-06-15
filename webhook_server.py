@@ -183,18 +183,21 @@ def convert_symbol_format(tv_symbol):
         if ':' in tv_symbol:
             tv_symbol = tv_symbol.split(':')[1]
         
+        # 如果已经是OKX格式（包含-SWAP后缀），直接返回
+        if '-SWAP' in tv_symbol or '-FUTURES' in tv_symbol:
+            logger.info(f"交易对已是OKX格式: {tv_symbol}")
+            return tv_symbol
+        
         # 处理常见格式
         symbol_map = {
             'BTCUSDT': 'BTC-USDT-SWAP',
             'ETHUSDT': 'ETH-USDT-SWAP',
             'ADAUSDT': 'ADA-USDT-SWAP',
+            'SOLUSDT': 'SOL-USDT-SWAP',
             'DOTUSDT': 'DOT-USDT-SWAP',
             'LINKUSDT': 'LINK-USDT-SWAP',
             'LTCUSDT': 'LTC-USDT-SWAP',
-            'BCHUSDT': 'BCH-USDT-SWAP',
-            'XRPUSDT': 'XRP-USDT-SWAP',
-            'EOSUSDT': 'EOS-USDT-SWAP',
-            'TRXUSDT': 'TRX-USDT-SWAP'
+            'BCHUSDT': 'BCH-USDT-SWAP'
         }
         
         if tv_symbol in symbol_map:
