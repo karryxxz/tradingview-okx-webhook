@@ -697,10 +697,31 @@ def test_okx_direct():
     
     results = {}
     
+    # 添加真实浏览器请求头，模拟正常用户访问
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/json, text/plain, */*',
+        'Accept-Language': 'en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Connection': 'keep-alive',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache',
+        'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+        'Sec-Ch-Ua-Mobile': '?0',
+        'Sec-Ch-Ua-Platform': '"macOS"',
+        'Sec-Fetch-Dest': 'empty',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Site': 'cross-site',
+    }
+    
     # 测试1: OKX公开API - 服务器时间
     try:
         start_time = time.time()
-        response = requests.get("https://www.okx.com/api/v5/public/time", timeout=10)
+        response = requests.get(
+            "https://www.okx.com/api/v5/public/time", 
+            headers=headers,
+            timeout=10
+        )
         end_time = time.time()
         
         results['okx_time'] = {
@@ -709,7 +730,7 @@ def test_okx_direct():
             'response_time': f"{end_time - start_time:.2f}s",
             'headers': dict(response.headers),
             'content': response.text[:200],
-            'note': 'OKX服务器时间API'
+            'note': 'OKX服务器时间API (使用浏览器请求头)'
         }
     except Exception as e:
         results['okx_time'] = {
@@ -721,7 +742,11 @@ def test_okx_direct():
     # 测试2: OKX公开API - 市场行情
     try:
         start_time = time.time()
-        response = requests.get("https://www.okx.com/api/v5/market/tickers?instType=SPOT", timeout=10)
+        response = requests.get(
+            "https://www.okx.com/api/v5/market/tickers?instType=SPOT", 
+            headers=headers,
+            timeout=10
+        )
         end_time = time.time()
         
         if response.status_code == 200:
@@ -740,7 +765,7 @@ def test_okx_direct():
             'content_type': response.headers.get('Content-Type', 'unknown'),
             'content_length': len(response.text),
             'sample_data': sample_data,
-            'note': 'OKX市场行情API'
+            'note': 'OKX市场行情API (使用浏览器请求头)'
         }
     except Exception as e:
         results['okx_tickers'] = {
@@ -752,7 +777,11 @@ def test_okx_direct():
     # 测试3: 尝试访问OKX主域名
     try:
         start_time = time.time()
-        response = requests.get("https://www.okx.com", timeout=10)
+        response = requests.get(
+            "https://www.okx.com", 
+            headers=headers,
+            timeout=10
+        )
         end_time = time.time()
         
         results['okx_homepage'] = {
@@ -761,7 +790,7 @@ def test_okx_direct():
             'response_time': f"{end_time - start_time:.2f}s",
             'content_length': len(response.text),
             'content_preview': response.text[:100],
-            'note': 'OKX主页访问'
+            'note': 'OKX主页访问 (使用浏览器请求头)'
         }
     except Exception as e:
         results['okx_homepage'] = {
@@ -773,7 +802,7 @@ def test_okx_direct():
     return jsonify({
         'test_results': results,
         'timestamp': datetime.now().isoformat(),
-        'note': '直接HTTP请求测试OKX API'
+        'note': '使用浏览器UA伪装测试OKX API'
     })
 
 if __name__ == '__main__':
