@@ -689,6 +689,93 @@ def test_external_simple():
         'note': '简单外部网络连通性测试'
     })
 
+@app.route('/test-okx-direct', methods=['GET'])
+def test_okx_direct():
+    """直接HTTP请求测试OKX API，绕过SDK"""
+    import requests
+    import time
+    
+    results = {}
+    
+    # 测试1: OKX公开API - 服务器时间
+    try:
+        start_time = time.time()
+        response = requests.get("https://www.okx.com/api/v5/public/time", timeout=10)
+        end_time = time.time()
+        
+        results['okx_time'] = {
+            'success': response.status_code == 200,
+            'status_code': response.status_code,
+            'response_time': f"{end_time - start_time:.2f}s",
+            'headers': dict(response.headers),
+            'content': response.text[:200],
+            'note': 'OKX服务器时间API'
+        }
+    except Exception as e:
+        results['okx_time'] = {
+            'success': False,
+            'error': str(e),
+            'error_type': str(type(e).__name__)
+        }
+    
+    # 测试2: OKX公开API - 市场行情
+    try:
+        start_time = time.time()
+        response = requests.get("https://www.okx.com/api/v5/market/tickers?instType=SPOT", timeout=10)
+        end_time = time.time()
+        
+        if response.status_code == 200:
+            try:
+                json_data = response.json()
+                sample_data = str(json_data)[:300] if json_data else "Empty JSON"
+            except:
+                sample_data = response.text[:300]
+        else:
+            sample_data = response.text[:300]
+        
+        results['okx_tickers'] = {
+            'success': response.status_code == 200,
+            'status_code': response.status_code,
+            'response_time': f"{end_time - start_time:.2f}s",
+            'content_type': response.headers.get('Content-Type', 'unknown'),
+            'content_length': len(response.text),
+            'sample_data': sample_data,
+            'note': 'OKX市场行情API'
+        }
+    except Exception as e:
+        results['okx_tickers'] = {
+            'success': False,
+            'error': str(e),
+            'error_type': str(type(e).__name__)
+        }
+    
+    # 测试3: 尝试访问OKX主域名
+    try:
+        start_time = time.time()
+        response = requests.get("https://www.okx.com", timeout=10)
+        end_time = time.time()
+        
+        results['okx_homepage'] = {
+            'success': response.status_code == 200,
+            'status_code': response.status_code,
+            'response_time': f"{end_time - start_time:.2f}s",
+            'content_length': len(response.text),
+            'content_preview': response.text[:100],
+            'note': 'OKX主页访问'
+        }
+    except Exception as e:
+        results['okx_homepage'] = {
+            'success': False,
+            'error': str(e),
+            'error_type': str(type(e).__name__)
+        }
+    
+    return jsonify({
+        'test_results': results,
+        'timestamp': datetime.now().isoformat(),
+        'note': '直接HTTP请求测试OKX API'
+    })
+
 if __name__ == '__main__':
     # 云平台端口适配：Render会提供PORT环境变量
     port = int(os.environ.get("PORT", Config.SERVER_PORT or 5000))
