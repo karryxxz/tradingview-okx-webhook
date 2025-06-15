@@ -16,7 +16,7 @@ python-dotenv==1.0.0
 
 # 网络请求
 requests>=2.25.0
-urllib3==1.26.12
+urllib3>=1.26.12
 
 # JSON处理 (Python内置，无需安装)
 # jsonschema==4.19.0
@@ -26,6 +26,9 @@ pytz>=2023.3
 
 # 密码学（用于签名验证）
 cryptography>=41.0.0
+
+# 生产环境必需包
+gunicorn>=20.1.0
 
 # 可选：通知功能
 # 微信机器人

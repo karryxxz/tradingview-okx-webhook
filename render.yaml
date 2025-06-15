@@ -1,0 +1,22 @@
+# Render部署配置文件
+services:
+  - type: web
+    name: tradingview-webhook
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python webhook_server.py
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: WEBHOOK_SECRET
+        fromGroup: secrets
+      - key: OKX_API_KEY
+        fromGroup: secrets
+      - key: OKX_SECRET_KEY
+        fromGroup: secrets
+      - key: OKX_PASSPHRASE
+        fromGroup: secrets
+      - key: OKX_SANDBOX
+        value: "true"
+      - key: MAX_POSITION_SIZE
+        value: "0.1"
