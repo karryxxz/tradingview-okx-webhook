@@ -73,7 +73,13 @@ class OKXTrader:
     def check_connection(self):
         """检查API连接状态"""
         try:
+            logger.info("开始测试OKX API连接...")
+            logger.info(f"使用环境: {'测试环境' if self.flag == '1' else '正式环境'}")
+            logger.info(f"API Key前4位: {Config.OKX_API_KEY[:4]}****")
+            
             result = self.market_api.get_system_time()
+            logger.info(f"API响应: {result}")
+            
             if result.get('code') == '0':
                 logger.info("OKX API连接正常")
                 return True
@@ -82,6 +88,8 @@ class OKXTrader:
                 return False
         except Exception as e:
             logger.error(f"检查OKX连接失败: {e}")
+            logger.error(f"异常类型: {type(e)}")
+            logger.error(f"异常详情: {str(e)}")
             return False
     
     def get_balance(self):
@@ -108,19 +116,33 @@ class OKXTrader:
     def get_positions(self):
         """获取当前持仓"""
         try:
+            logger.info("正在获取持仓信息...")
+            logger.info(f"使用API环境: {'测试环境' if self.flag == '1' else '正式环境'}")
+            
             result = self.account_api.get_positions()
+            logger.info(f"持仓API原始响应: {result}")
+            logger.info(f"响应类型: {type(result)}")
+            
             if result.get('code') == '0':
+                logger.info("获取持仓成功")
                 return {
                     'success': True,
                     'data': result.get('data', [])
                 }
             else:
+                logger.error(f"获取持仓失败，错误代码: {result.get('code')}")
+                logger.error(f"错误信息: {result.get('msg')}")
                 return {
                     'success': False,
                     'error': result.get('msg', '获取持仓失败')
                 }
         except Exception as e:
             logger.error(f"获取持仓异常: {e}")
+            logger.error(f"异常类型: {type(e)}")
+            logger.error(f"异常详情: {str(e)}")
+            # 如果是JSON解析错误，可能收到的是HTML响应
+            if "Expecting value" in str(e):
+                logger.error("可能收到非JSON响应，疑似API认证失败")
             return {
                 'success': False,
                 'error': str(e)
