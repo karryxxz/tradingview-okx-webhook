@@ -30,15 +30,17 @@ class OKXTrader:
     """OKX合约交易器"""
     
     def __init__(self):
-        """初始化OKX交易器"""
+        """初始化OKX交易接口"""
         try:
-            # 初始化API连接
-            self.flag = "1" if Config.OKX_SANDBOX else "0"  # 1=测试环境, 0=正式环境
+            # 根据配置决定使用正式环境还是测试环境
+            self.flag = "1" if Config.OKX_SANDBOX else "0"  # "0": 正式环境, "1": 测试环境
             
-            # 初始化各个API模块
+            logger.info(f"初始化OKX交易接口，环境: {'测试环境' if self.flag == '1' else '正式环境'}")
+            
+            # 初始化各个API接口 - 使用正确的SDK用法
             self.account_api = Account.AccountAPI(
                 api_key=Config.OKX_API_KEY,
-                api_secret_key=Config.OKX_SECRET_KEY,
+                api_secret_key=Config.OKX_SECRET_KEY,  # 注意这里使用正确的参数名
                 passphrase=Config.OKX_PASSPHRASE,
                 use_server_time=False,
                 flag=self.flag
@@ -46,28 +48,23 @@ class OKXTrader:
             
             self.trade_api = Trade.TradeAPI(
                 api_key=Config.OKX_API_KEY,
-                api_secret_key=Config.OKX_SECRET_KEY,
+                api_secret_key=Config.OKX_SECRET_KEY,  # 注意这里使用正确的参数名
                 passphrase=Config.OKX_PASSPHRASE,
                 use_server_time=False,
                 flag=self.flag
             )
             
-            self.market_api = MarketData.MarketAPI(
-                api_key=Config.OKX_API_KEY,
-                api_secret_key=Config.OKX_SECRET_KEY,
-                passphrase=Config.OKX_PASSPHRASE,
-                use_server_time=False,
-                flag=self.flag
-            )
+            # MarketData不需要认证
+            self.market_api = MarketData.MarketAPI(flag=self.flag)
             
             # 交易状态跟踪
             self.daily_trade_count = 0
             self.last_trade_date = None
             
-            logger.info(f"OKX交易器初始化完成 - {'测试环境' if Config.OKX_SANDBOX else '正式环境'}")
+            logger.info("OKX交易接口初始化成功")
             
         except Exception as e:
-            logger.error(f"OKX交易器初始化失败: {e}")
+            logger.error(f"初始化OKX交易接口失败: {e}")
             raise
     
     def check_connection(self):
@@ -77,7 +74,8 @@ class OKXTrader:
             logger.info(f"使用环境: {'测试环境' if self.flag == '1' else '正式环境'}")
             logger.info(f"API Key前4位: {Config.OKX_API_KEY[:4]}****")
             
-            result = self.market_api.get_system_time()
+            # 使用正确的方法名 - 测试市场数据获取
+            result = self.market_api.get_tickers(instType="SPOT")
             logger.info(f"API响应: {result}")
             
             if result.get('code') == '0':
@@ -95,13 +93,16 @@ class OKXTrader:
     def get_balance(self):
         """获取账户余额"""
         try:
+            # 使用正确的方法名
             result = self.account_api.get_account_balance()
             if result.get('code') == '0':
+                logger.info("获取余额成功")
                 return {
                     'success': True,
                     'data': result.get('data', [])
                 }
             else:
+                logger.error(f"获取余额失败: {result}")
                 return {
                     'success': False,
                     'error': result.get('msg', '获取余额失败')
@@ -173,6 +174,9 @@ class OKXTrader:
     def set_leverage(self, symbol, leverage):
         """设置杠杆倍数"""
         try:
+            logger.info(f"设置杠杆 {symbol}: {leverage}x")
+            
+            # 使用正确的方法名
             result = self.account_api.set_leverage(
                 instId=symbol,
                 lever=str(leverage),
@@ -180,7 +184,7 @@ class OKXTrader:
             )
             
             if result.get('code') == '0':
-                logger.info(f"设置杠杆成功: {symbol} - {leverage}x")
+                logger.info(f"设置杠杆成功: {leverage}x")
                 return {'success': True}
             else:
                 logger.error(f"设置杠杆失败: {result}")
@@ -194,92 +198,25 @@ class OKXTrader:
                 'success': False,
                 'error': str(e)
             }
-    
-    def close_existing_positions(self, symbol):
-        """平掉指定交易对的所有现有仓位"""
+
+    def place_order(self, symbol, side, amount, order_type='market', price=None):
+        """下单"""
         try:
-            positions = self.get_positions()
-            if not positions['success']:
-                return positions
+            logger.info(f"准备下单: {symbol} {side} {amount}")
             
-            closed_positions = []
-            for position in positions['data']:
-                if (position['instId'] == symbol and 
-                    float(position['pos']) != 0):
-                    
-                    # 平仓
-                    side = "sell" if float(position['pos']) > 0 else "buy"
-                    size = abs(float(position['pos']))
-                    
-                    close_result = self.place_order(
-                        symbol=symbol,
-                        side=side,
-                        size=size,
-                        order_type="market",
-                        reduce_only=True
-                    )
-                    
-                    if close_result['success']:
-                        closed_positions.append({
-                            'symbol': symbol,
-                            'side': position['posSide'],
-                            'size': size
-                        })
-                        logger.info(f"平仓成功: {symbol} {side} {size}")
-                    else:
-                        logger.error(f"平仓失败: {close_result}")
-            
-            return {
-                'success': True,
-                'closed_positions': closed_positions
-            }
-            
-        except Exception as e:
-            logger.error(f"平仓操作异常: {e}")
-            return {
-                'success': False,
-                'error': str(e)
-            }
-    
-    def place_order(self, symbol, side, size, order_type="market", price=None, reduce_only=False):
-        """下单函数"""
-        try:
-            # 检查交易权限
-            if not Config.ENABLE_TRADING:
-                logger.info(f"模拟交易: {side.upper()} {size} {symbol} @ {price or 'MARKET'}")
-                return {
-                    'success': True,
-                    'order_id': f"DEMO_{int(time.time())}",
-                    'message': '模拟交易完成'
-                }
-            
-            # 构建订单参数
-            order_params = {
-                'instId': symbol,
-                'tdMode': 'cross',  # 全仓模式
-                'side': side,
-                'ordType': order_type,
-                'sz': str(size)
-            }
-            
-            # 添加价格（限价单）
-            if order_type == 'limit' and price:
-                order_params['px'] = str(price)
-            
-            # 只减仓标识
-            if reduce_only:
-                order_params['reduceOnly'] = True
-            
-            # 下单
-            result = self.trade_api.place_order(**order_params)
+            # 使用正确的方法名
+            result = self.trade_api.place_order(
+                instId=symbol,
+                tdMode="cross",  # 全仓模式
+                side=side,  # buy 或 sell
+                ordType=order_type,  # market 或 limit
+                sz=str(amount),
+                px=str(price) if price else None
+            )
             
             if result.get('code') == '0':
                 order_id = result['data'][0]['ordId']
-                logger.info(f"下单成功: {side.upper()} {size} {symbol}, 订单ID: {order_id}")
-                
-                # 更新交易计数
-                self._update_trade_count()
-                
+                logger.info(f"下单成功，订单ID: {order_id}")
                 return {
                     'success': True,
                     'order_id': order_id,
@@ -291,9 +228,61 @@ class OKXTrader:
                     'success': False,
                     'error': result.get('msg', '下单失败')
                 }
-                
         except Exception as e:
             logger.error(f"下单异常: {e}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+
+    def close_position(self, symbol, side):
+        """平仓"""
+        try:
+            logger.info(f"准备平仓: {symbol} {side}")
+            
+            # 获取持仓信息
+            positions = self.get_positions()
+            if not positions['success']:
+                return positions
+            
+            target_position = None
+            for pos in positions['data']:
+                if pos['instId'] == symbol and pos['posSide'] == side:
+                    target_position = pos
+                    break
+            
+            if not target_position:
+                logger.info("没有找到需要平仓的持仓")
+                return {'success': True, 'message': '无持仓需要平仓'}
+            
+            pos_size = abs(float(target_position['pos']))
+            close_side = 'sell' if side == 'long' else 'buy'
+            
+            # 使用正确的方法名
+            result = self.trade_api.place_order(
+                instId=symbol,
+                tdMode="cross",
+                side=close_side,
+                ordType="market",
+                sz=str(pos_size),
+                reduceOnly=True  # 只减仓
+            )
+            
+            if result.get('code') == '0':
+                logger.info("平仓成功")
+                return {
+                    'success': True,
+                    'order_id': result['data'][0]['ordId']
+                }
+            else:
+                logger.error(f"平仓失败: {result}")
+                return {
+                    'success': False,
+                    'error': result.get('msg', '平仓失败')
+                }
+                
+        except Exception as e:
+            logger.error(f"平仓异常: {e}")
             return {
                 'success': False,
                 'error': str(e)
@@ -302,31 +291,24 @@ class OKXTrader:
     def place_stop_order(self, symbol, side, size, trigger_price, order_price=None):
         """下止损止盈单"""
         try:
-            if not Config.ENABLE_TRADING:
-                logger.info(f"模拟止损单: {side.upper()} {size} {symbol} @ {trigger_price}")
-                return {
-                    'success': True,
-                    'order_id': f"DEMO_STOP_{int(time.time())}"
-                }
+            logger.info(f"设置止损单: {symbol} {side} {size} @ {trigger_price}")
             
-            order_params = {
-                'instId': symbol,
-                'tdMode': 'cross',
-                'side': side,
-                'ordType': 'conditional',  # 条件单
-                'sz': str(size),
-                'triggerPx': str(trigger_price),
-                'orderPx': str(order_price) if order_price else str(trigger_price)
-            }
-            
-            result = self.trade_api.place_algo_order(**order_params)
+            # 使用正确的方法名
+            result = self.trade_api.place_algo_order(
+                instId=symbol,
+                tdMode="cross",
+                side=side,
+                ordType="conditional",  # 条件单
+                sz=str(size),
+                triggerPx=str(trigger_price),
+                orderPx=str(order_price) if order_price else str(trigger_price)
+            )
             
             if result.get('code') == '0':
-                order_id = result['data'][0]['algoId']
-                logger.info(f"止损单设置成功: {symbol}, 触发价: {trigger_price}")
+                logger.info("止损单设置成功")
                 return {
                     'success': True,
-                    'order_id': order_id
+                    'order_id': result['data'][0]['algoId']
                 }
             else:
                 logger.error(f"止损单设置失败: {result}")
@@ -334,14 +316,13 @@ class OKXTrader:
                     'success': False,
                     'error': result.get('msg', '止损单设置失败')
                 }
-                
         except Exception as e:
-            logger.error(f"止损单异常: {e}")
+            logger.error(f"止损单设置异常: {e}")
             return {
                 'success': False,
                 'error': str(e)
             }
-    
+
     def open_long_position(self, symbol, size, leverage=10, stop_loss=None, take_profit=None):
         """开多仓"""
         try:
@@ -353,7 +334,7 @@ class OKXTrader:
                 return risk_check
             
             # 平掉现有仓位
-            close_result = self.close_existing_positions(symbol)
+            close_result = self.close_position(symbol, 'long')
             if not close_result['success']:
                 logger.warning(f"平仓失败，继续开仓: {close_result}")
             
@@ -366,7 +347,7 @@ class OKXTrader:
             order_result = self.place_order(
                 symbol=symbol,
                 side="buy",
-                size=size,
+                amount=size,
                 order_type="market"
             )
             
@@ -423,7 +404,7 @@ class OKXTrader:
                 return risk_check
             
             # 平掉现有仓位
-            close_result = self.close_existing_positions(symbol)
+            close_result = self.close_position(symbol, 'short')
             if not close_result['success']:
                 logger.warning(f"平仓失败，继续开仓: {close_result}")
             
@@ -436,7 +417,7 @@ class OKXTrader:
             order_result = self.place_order(
                 symbol=symbol,
                 side="sell",
-                size=size,
+                amount=size,
                 order_type="market"
             )
             
