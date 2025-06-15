@@ -566,6 +566,74 @@ def test_network():
         logger.error(f"网络测试失败: {e}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/test-basic', methods=['GET'])
+def test_basic():
+    """最基础的诊断测试，不做任何外部调用"""
+    try:
+        import sys
+        import os
+        
+        return jsonify({
+            'status': 'working',
+            'python_version': sys.version,
+            'platform': sys.platform,
+            'env_vars': {
+                'PORT': os.environ.get('PORT', 'Not set'),
+                'PYTHON_VERSION': os.environ.get('PYTHON_VERSION', 'Not set'),
+                'RENDER': os.environ.get('RENDER', 'Not set')
+            },
+            'current_time': datetime.now().isoformat(),
+            'note': '基础Flask功能测试 - 无外部调用'
+        })
+    except Exception as e:
+        return jsonify({
+            'error': str(e),
+            'error_type': str(type(e))
+        }), 500
+
+@app.route('/test-imports', methods=['GET'])
+def test_imports():
+    """测试所有必要的库导入"""
+    try:
+        results = {}
+        
+        # 测试各种导入
+        try:
+            import requests
+            results['requests'] = {'success': True, 'version': getattr(requests, '__version__', 'unknown')}
+        except Exception as e:
+            results['requests'] = {'success': False, 'error': str(e)}
+        
+        try:
+            import okx
+            results['okx'] = {'success': True, 'version': getattr(okx, '__version__', 'unknown')}
+        except Exception as e:
+            results['okx'] = {'success': False, 'error': str(e)}
+        
+        try:
+            import okx.Account as Account
+            results['okx_account'] = {'success': True}
+        except Exception as e:
+            results['okx_account'] = {'success': False, 'error': str(e)}
+        
+        try:
+            import okx.MarketData as MarketData
+            results['okx_market'] = {'success': True}
+        except Exception as e:
+            results['okx_market'] = {'success': False, 'error': str(e)}
+        
+        return jsonify({
+            'import_results': results,
+            'timestamp': datetime.now().isoformat(),
+            'note': '库导入测试'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'error': str(e),
+            'error_type': str(type(e))
+        }), 500
+
 if __name__ == '__main__':
     # 云平台端口适配：Render会提供PORT环境变量
     port = int(os.environ.get("PORT", Config.SERVER_PORT or 5000))
