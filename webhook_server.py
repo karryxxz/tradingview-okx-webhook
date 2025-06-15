@@ -301,6 +301,28 @@ def get_status():
         logger.error(f"获取状态失败: {e}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/debug-config', methods=['GET'])
+def debug_config():
+    """调试配置信息（仅显示前几位，确保安全）"""
+    try:
+        return jsonify({
+            'api_config': {
+                'api_key_prefix': Config.OKX_API_KEY[:6] + '****' if len(Config.OKX_API_KEY) > 6 else 'NOT_SET',
+                'secret_key_prefix': Config.OKX_SECRET_KEY[:6] + '****' if len(Config.OKX_SECRET_KEY) > 6 else 'NOT_SET', 
+                'passphrase_set': bool(Config.OKX_PASSPHRASE and Config.OKX_PASSPHRASE != 'your_passphrase'),
+                'sandbox_mode': Config.OKX_SANDBOX,
+                'trading_enabled': Config.ENABLE_TRADING
+            },
+            'environment': {
+                'flag': okx_trader.flag,
+                'environment_name': '测试环境' if okx_trader.flag == '1' else '正式环境'
+            },
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"获取调试配置失败: {e}")
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
     # 云平台端口适配：Render会提供PORT环境变量
     port = int(os.environ.get("PORT", Config.SERVER_PORT or 5000))
