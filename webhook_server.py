@@ -323,6 +323,74 @@ def debug_config():
         logger.error(f"获取调试配置失败: {e}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/test-api', methods=['GET'])
+def test_api():
+    """测试OKX API各个端点的访问权限"""
+    try:
+        results = {}
+        
+        # 测试1: 系统时间 (公开端点，无需认证)
+        try:
+            logger.info("测试公开API: 系统时间")
+            public_result = okx_trader.market_api.get_system_time()
+            results['system_time'] = {
+                'success': True,
+                'data': public_result,
+                'note': '公开API，无需认证'
+            }
+        except Exception as e:
+            results['system_time'] = {
+                'success': False,
+                'error': str(e),
+                'note': '公开API测试失败'
+            }
+        
+        # 测试2: 账户余额 (需要读取权限)
+        try:
+            logger.info("测试私有API: 账户余额")
+            balance_result = okx_trader.account_api.get_account_balance()
+            results['account_balance'] = {
+                'success': True,
+                'data': balance_result,
+                'note': '需要读取权限'
+            }
+        except Exception as e:
+            results['account_balance'] = {
+                'success': False,
+                'error': str(e),
+                'note': '读取权限测试失败'
+            }
+        
+        # 测试3: 持仓信息 (需要读取权限)
+        try:
+            logger.info("测试私有API: 持仓信息")
+            position_result = okx_trader.account_api.get_positions()
+            results['positions'] = {
+                'success': True,
+                'data': position_result,
+                'note': '需要读取权限'
+            }
+        except Exception as e:
+            results['positions'] = {
+                'success': False,
+                'error': str(e),
+                'note': '读取权限测试失败'
+            }
+        
+        return jsonify({
+            'test_results': results,
+            'summary': {
+                'public_api_works': results.get('system_time', {}).get('success', False),
+                'private_api_works': results.get('account_balance', {}).get('success', False),
+                'all_permissions': all(r.get('success', False) for r in results.values())
+            },
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"API测试失败: {e}")
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
     # 云平台端口适配：Render会提供PORT环境变量
     port = int(os.environ.get("PORT", Config.SERVER_PORT or 5000))
